@@ -1,0 +1,100 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:dev.sqlite"
+}
+
+model Session {
+  id            String    @id
+  shop          String
+  state         String
+  isOnline      Boolean   @default(false)
+  scope         String?
+  expires       DateTime?
+  accessToken   String
+  userId        BigInt?
+  firstName     String?
+  lastName      String?
+  email         String?
+  accountOwner  Boolean   @default(false)
+  locale        String?
+  collaborator  Boolean?  @default(false)
+  emailVerified Boolean?  @default(false)
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+}
+
+model ShopSettings {
+  id            String   @id @default(cuid())
+  shop          String   @unique
+  plan          String   @default("FREE")
+  retentionDays Int      @default(30)
+  defaultLocale String   @default("en")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model ConsentBlock {
+  id           String              @id @default(cuid())
+  shop         String
+  title        String
+  bodyHtml     String
+  type         String              @default("CHECKBOX")
+  required     Boolean             @default(true)
+  active       Boolean             @default(true)
+  sortOrder    Int                 @default(0)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  translations ConsentTranslation[]
+  rules        DisplayRule[]
+  events       ConsentEvent[]
+
+  @@index([shop])
+  @@index([shop, active, sortOrder])
+}
+
+model ConsentTranslation {
+  id       String       @id @default(cuid())
+  blockId  String
+  locale   String
+  bodyHtml String
+  block    ConsentBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
+
+  @@unique([blockId, locale])
+}
+
+model DisplayRule {
+  id        String       @id @default(cuid())
+  blockId   String
+  type      String
+  operator  String       @default("contains")
+  valueJson String
+  group     Int          @default(0)
+  block     ConsentBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
+
+  @@index([blockId])
+}
+
+model ConsentEvent {
+  id                  String        @id @default(cuid())
+  shop                String
+  blockId             String?
+  orderId             String?
+  orderName           String?
+  checkoutToken       String?
+  locale              String?
+  consented           Boolean       @default(true)
+  consentTextSnapshot String
+  consentPayloadJson  String
+  consentedAt         DateTime
+  createdAt           DateTime      @default(now())
+  block               ConsentBlock? @relation(fields: [blockId], references: [id], onDelete: SetNull)
+
+  @@index([shop, createdAt])
+  @@index([shop, orderName])
+  @@index([blockId])
+  @@unique([shop, orderId, blockId])
+}

@@ -1,0 +1,26 @@
+api_version = "2026-04"
+
+[[extensions]]
+name = "ConsentGuard Checkout"
+handle = "consentguard-checkout"
+type = "ui_extension"
+
+[[extensions.targeting]]
+module = "./src/Checkout.jsx"
+target = "purchase.checkout.block.render"
+
+[extensions.capabilities]
+api_access = true
+network_access = true
+block_progress = true
+
+[[extensions.metafields]]
+namespace = "$app"
+key = "consentPayload"
+
+[extensions.settings]
+[[extensions.settings.fields]]
+key = "app_url"
+type = "single_line_text_field"
+name = "App URL"
+description = "The ConsentGuard app backend URL (set automatically on deploy)"
