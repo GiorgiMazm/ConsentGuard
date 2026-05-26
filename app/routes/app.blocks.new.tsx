@@ -12,6 +12,7 @@ import prisma from "../db.server";
 import { getShopSettings } from "../lib/shop-settings.server";
 import type { Plan } from "../lib/plans";
 import { canCreateBlock, getPlanLimits } from "../lib/plans";
+import { syncCheckoutMetafield } from "../lib/sync-checkout-metafield.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -27,7 +28,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const shop = session.shop;
   const formData = await request.formData();
 
@@ -145,6 +146,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       } catch {}
     }
   }
+
+  // Sync metafield for checkout extension
+  await syncCheckoutMetafield(shop, admin);
 
   return { ok: true, blockId: block.id };
 };
