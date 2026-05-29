@@ -57,6 +57,7 @@ export async function syncCheckoutMetafield(shop: string, admin: any) {
   const result = await response.json();
   if (result.data?.metafieldsSet?.userErrors?.length > 0) {
     console.error("Metafield sync errors:", result.data.metafieldsSet.userErrors);
+    throw new Error("Failed to sync checkout consent blocks.");
   }
 }
 

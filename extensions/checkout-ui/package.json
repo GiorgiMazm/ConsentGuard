@@ -1,0 +1,14 @@
+{
+  "name": "consent-guard-checkout-ui",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "shopify app build --source-map"
+  },
+  "dependencies": {
+    "@shopify/ui-extensions": "2026.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

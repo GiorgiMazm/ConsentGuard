@@ -32,3 +32,8 @@ use_legacy_install_flow = false
 
 [auth]
 redirect_urls = [ ]
+
+[shop.metafields.app.checkout_blocks]
+name = "ConsentGuard checkout blocks"
+description = "Active consent blocks rendered by the ConsentGuard checkout extension."
+type = "json"

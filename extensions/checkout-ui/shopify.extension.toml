@@ -1,0 +1,26 @@
+api_version = "2026-01"
+
+[[extensions]]
+name = "ConsentGuard Checkout"
+handle = "consent-guard-checkout"
+uid = "af310aaf-7348-02b9-9670-c25172420e2cc9c35456"
+type = "ui_extension"
+
+[[extensions.targeting]]
+target = "purchase.checkout.block.render"
+module = "./src/Checkout.tsx"
+
+# App-owned metafield containing the consent blocks JSON
+[[extensions.metafields]]
+namespace = "$app"
+key = "checkout_blocks"
+
+[extensions.capabilities]
+block_progress = true
+
+[extensions.settings]
+  [[extensions.settings.fields]]
+  key = "heading"
+  type = "single_line_text_field"
+  name = "Section heading"
+  description = "Optional heading displayed above consent blocks"
