@@ -6,25 +6,47 @@ import type {
 import { useLoaderData, useSubmit, useNavigation, useActionData } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { useEffect } from "react";
-import { redirect } from "react-router";
-import { authenticate } from "../shopify.server";
+import { authenticate, PRO_PLAN, BUSINESS_PLAN } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { getShopSettings, updateShopSettings } from "../lib/shop-settings.server";
 import type { Plan } from "../lib/plans";
-import { PLAN_DETAILS, getPlanLimits } from "../lib/plans";
+import { getPlanLimits } from "../lib/plans";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const settings = await getShopSettings(session.shop);
-  return { plan: settings.plan as Plan };
+  const { session, billing } = await authenticate.admin(request);
+  const shop = session.shop;
+
+  // Check if there's an active subscription and sync with our DB
+  const { appSubscriptions } = await billing.check({
+    plans: [PRO_PLAN, BUSINESS_PLAN] as any,
+    isTest: process.env.NODE_ENV !== "production",
+  });
+
+  let currentPlan: Plan = "FREE";
+  if (appSubscriptions.length > 0) {
+    const activeSub = appSubscriptions[0];
+    if (activeSub.name === PRO_PLAN) {
+      currentPlan = "PRO";
+    } else if (activeSub.name === BUSINESS_PLAN) {
+      currentPlan = "BUSINESS";
+    }
+  }
+
+  // Sync plan to DB
+  const limits = getPlanLimits(currentPlan);
+  await updateShopSettings(shop, {
+    plan: currentPlan,
+    retentionDays: limits.retentionDays,
+  });
+
+  return { plan: currentPlan };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { admin, session } = await authenticate.admin(request);
+  const { session, billing, admin } = await authenticate.admin(request);
   const formData = await request.formData();
   const selectedPlan = formData.get("plan") as string;
 
-  // Validate plan input
   if (!selectedPlan || !["FREE", "PRO", "BUSINESS"].includes(selectedPlan)) {
     return { error: "Invalid plan selected" };
   }
@@ -34,33 +56,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (typedPlan === "FREE") {
     // Cancel any existing subscription
     try {
-      const currentSubResponse = await admin.graphql(
-        `#graphql
-        query {
-          currentAppInstallation {
-            activeSubscriptions {
-              id
-              name
-              status
-            }
-          }
-        }`
-      );
-      const currentSubJson = await currentSubResponse.json();
-      const activeSubs =
-        currentSubJson.data?.currentAppInstallation?.activeSubscriptions || [];
+      const { appSubscriptions } = await billing.check({
+        plans: [PRO_PLAN, BUSINESS_PLAN] as any,
+        isTest: process.env.NODE_ENV !== "production",
+      });
 
-      for (const sub of activeSubs) {
-        await admin.graphql(
-          `#graphql
-          mutation cancelSubscription($id: ID!) {
-            appSubscriptionCancel(id: $id) {
-              appSubscription { id }
-              userErrors { field message }
-            }
-          }`,
-          { variables: { id: sub.id } }
-        );
+      for (const sub of appSubscriptions) {
+        await billing.cancel({
+          subscriptionId: sub.id,
+          isTest: process.env.NODE_ENV !== "production",
+          prorate: true,
+        });
       }
     } catch (e) {
       console.error("[ConsentGuard] Error cancelling subscription:", e);
@@ -73,63 +79,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { ok: true, plan: "FREE" };
   }
 
-  // Create a Shopify billing subscription
-  const planInfo = PLAN_DETAILS[typedPlan];
-  const isTest = process.env.NODE_ENV !== "production";
+  // Request billing — this handles the redirect automatically
+  const planName = typedPlan === "PRO" ? PRO_PLAN : BUSINESS_PLAN;
+  const url = new URL(request.url);
+  const returnUrl = `${url.origin}/app/billing`;
 
-  const response = await admin.graphql(
-    `#graphql
-    mutation createSubscription($name: String!, $amount: Decimal!, $returnUrl: URL!, $trialDays: Int, $test: Boolean) {
-      appSubscriptionCreate(
-        name: $name
-        returnUrl: $returnUrl
-        test: $test
-        trialDays: $trialDays
-        lineItems: [
-          {
-            plan: {
-              appRecurringPricingDetails: {
-                price: { amount: $amount, currencyCode: USD }
-              }
-            }
-          }
-        ]
-      ) {
-        appSubscription {
-          id
-        }
-        confirmationUrl
-        userErrors {
-          field
-          message
-        }
-      }
-    }`,
-    {
-      variables: {
-        name: `ConsentGuard ${planInfo.name}`,
-        amount: planInfo.price,
-        returnUrl: `${process.env.SHOPIFY_APP_URL}/app/billing?plan=${typedPlan}`,
-        trialDays: 7,
-        test: isTest,
-      },
-    }
-  );
+  await billing.request({
+    plan: planName as any,
+    isTest: process.env.NODE_ENV !== "production",
+    returnUrl,
+  });
 
-  const responseJson = await response.json();
-  const { confirmationUrl, userErrors } =
-    responseJson.data?.appSubscriptionCreate || {};
-
-  if (userErrors?.length) {
-    return { error: userErrors[0].message };
-  }
-
-  if (confirmationUrl) {
-    // Redirect to Shopify's billing confirmation page
-    throw redirect(confirmationUrl);
-  }
-
-  return { error: "Failed to create subscription" };
+  // billing.request throws a redirect, so this won't be reached
+  return { ok: true };
 };
 
 const plans: Array<{
