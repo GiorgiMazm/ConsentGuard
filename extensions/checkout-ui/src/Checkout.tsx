@@ -1,5 +1,5 @@
 import "@shopify/ui-extensions/preact";
-import { useExtensionEditor } from "@shopify/ui-extensions/checkout/preact";
+import { useExtensionEditor, useAppMetafields } from "@shopify/ui-extensions/checkout/preact";
 import { render } from "preact";
 import { useState, useEffect, useMemo } from "preact/hooks";
 
@@ -18,7 +18,10 @@ export default function extension() {
 }
 
 function Extension() {
-  const metafields = shopify.metafields.value;
+  const appMetafields = useAppMetafields({
+    namespace: "$app",
+    key: "checkout_blocks",
+  });
   const locale =
     shopify.localization?.language?.value?.isoCode?.toLowerCase() ?? "en";
   const settings = shopify.settings.value;
@@ -27,17 +30,14 @@ function Extension() {
 
   // Parse blocks from the app metafield
   const blocks = useMemo<ConsentBlock[]>(() => {
-    const mf = metafields?.find(
-      (m: any) =>
-        m.namespace === "$app" && m.key === "checkout_blocks"
-    );
-    if (!mf?.value) return [];
+    const mf = appMetafields?.[0];
+    if (!mf?.metafield?.value) return [];
     try {
-      return JSON.parse(String(mf.value));
+      return JSON.parse(String(mf.metafield.value));
     } catch {
       return [];
     }
-  }, [metafields]);
+  }, [appMetafields]);
 
   // For now, show all blocks (display rule filtering requires metafield-based
   // product data which is not available on the Product type in checkout extensions).

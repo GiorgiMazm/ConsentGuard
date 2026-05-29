@@ -32,6 +32,8 @@ export async function syncCheckoutMetafield(shop: string, admin: any) {
 
   const metafieldValue = JSON.stringify(payload);
 
+  console.log("[syncCheckoutMetafield] shop:", shop, "blocks:", payload.length, "payload:", metafieldValue);
+
   const response = await admin.graphql(
     `mutation MetafieldsSet($metafields: [MetafieldsSetInput!]!) {
       metafieldsSet(metafields: $metafields) {
