@@ -7,7 +7,7 @@ uid = "af310aaf-7348-02b9-9670-c25172420e2cc9c35456"
 type = "ui_extension"
 
 [[extensions.targeting]]
-target = "purchase.checkout.block.render"
+target = "purchase.checkout.actions.render-before"
 module = "./src/Checkout.tsx"
 
 # App-owned metafield containing the consent blocks JSON
